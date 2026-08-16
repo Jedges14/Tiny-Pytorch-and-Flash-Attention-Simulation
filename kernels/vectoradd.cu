@@ -6,8 +6,9 @@ using namespace std;
 __global__ void vectoradd(float* A, float* B, float*C){
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if (idx < N){
+    while (idx < N){
         C[idx] = A[idx] + B[idx];
+        idx += blockDim.x * gridDim.x;
     }
 }
 
@@ -20,6 +21,7 @@ int main(){
     int size = N*sizeof(int);
 
     // device pointers from host to device
+
     float *dev_a, *dev_b, *dev_c;
 
     // alloc memory on device memory

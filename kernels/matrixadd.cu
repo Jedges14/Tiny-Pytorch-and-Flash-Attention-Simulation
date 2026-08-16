@@ -31,10 +31,7 @@ int main(){
 
 
     dim3 block(16, 16);
-    dim3 grid(
-        (N+block.x-1)/block.x,
-        (N+block.y-1)/block.y
-    );
+    dim3 grid((N+block.x-1)/block.x, (N+block.y-1)/block.y);
 
     ma<<<grid, block>>>(dev_a, dev_b, dev_c, N);
 

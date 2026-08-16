@@ -6,8 +6,9 @@ using namespace std;
 __global__ void SAXPY(float a, float* x, float* y, int n){
     int tid = threadIdx.x  + blockIdx.x * blockDim.x;
 
-    if (tid < n){
+    while (tid < n){
         y[tid] += a * x[tid];
+        tid += blockDim.x * gridDim.x;
     }
 }
 

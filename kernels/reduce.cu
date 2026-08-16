@@ -8,13 +8,13 @@
 #define N  1<<22
 using namespace std;
 
-__global__ void reduce(float* inputd, float* odata){
+__global__ void reduce(float* inputd, float* odata, int n){
     __shared__ int localCache[256];
 
     int tid = threadIdx.x;
     int Idx = threadIdx.x + blockDim.x * blockIdx.x;
 
-    localCache[tid] = inputd[Idx];
+    localCache[tid] = Idx<n ? inputd[Idx] : 0;
     __syncthreads(); // all threads can now see data and begin calculation
 
     int i = blockDim.x/2;
@@ -26,62 +26,32 @@ __global__ void reduce(float* inputd, float* odata){
         i/=2;
     }
     // map block that did the caculation on global memory
-    if (tid == 0) odata[blockIdx.x] = localCache[0];
-    
+    if (tid == 0) atomicAdd(odata, localCache[0]);
 }
+
+
 
 int main(){
     int threadPerBlock = 256;
     int numBlock = min(32, (N+threadPerBlock-1)/threadPerBlock);
     float a[N];
-    float *dev_a, *part_dev_c;
+    float *dev_a, *dev_out;
 
     float s = N*sizeof(float);
 
     cudaMalloc((void**)&dev_a, s );
-    cudaMalloc((void**)&part_dev_c, numBlock*sizeof(float));
+    cudaMalloc((void**)&dev_out,sizeof(float));
+    cudaMemset(dev_out, 0, sizeof(float));
 
     cudaMemcpy(dev_a, a, s, cudaMemcpyHostToDevice);
 
-    reduce <<<numBlock, threadPerBlock>>>(dev_a, part_dev_c);
+    reduce <<<numBlock, threadPerBlock>>>(dev_a, dev_out, N);
 
-    float* inp = part_dev_c;
-    float* out ;
-    int curBlock = numBlock;
-
-    while (curBlock > 1){ // we ensure we only return when we have one block answer remaining which is final answer
-        int nextBlock = (curBlock + threadPerBlock-1)/threadPerBlock;
-        cudaMalloc(&out, nextBlock*sizeof(float));
-
-        reduce<<<nextBlock, threadPerBlock>>>(inp, out);
-
-        cudaFree(inp);
-
-        inp = out;
-        curBlock = nextBlock;
-    }
-
-    // single point ans
     float res;
 
-    cudaMemcpy(&res, out, sizeof(float), cudaMemcpyDeviceToHost);
-    cudaFree(out);
+    cudaMemcpy(&res, dev_out, sizeof(float), cudaMemcpyDeviceToHost);
 
-
-    // // no need to run final sum on cpu
-    // float* part_sum = new float[numBlock];
-    // cudaMemcpy(part_sum, part_dev_c, numBlock*sizeof(float), cudaMemcpyDeviceToHost);
-
-    // // finish claculation on cpu which is more effective that on gpu
-    // float c = 0.0f;
-    // for (int i; i<numBlock; i++){
-    //     c += part_sum[i];
-    // }
-
-    // delete[] part_sum;
-    // cudaFree(dev_a);
-    // cudaFree(part_dev_c);
-
+    cudaFree(dev_out);
     return 0;
 
 }
