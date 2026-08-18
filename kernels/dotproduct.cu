@@ -5,8 +5,9 @@
 
 #include <iostream>
 #include <cuda.h>
-
-__global__ void dot(int* a, int* b, int* out, int n){
+#define threadsperblock 256
+#define N 1<<10
+__global__ void dot(float* a, float* b, int* out, int n){
     __shared__ int cache[256];
 
     int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -32,5 +33,31 @@ __global__ void dot(int* a, int* b, int* out, int n){
     }
 
     if (Idx==0) atomicAdd(out, cache[0]);
+}
 
+
+int main(){
+    int numblocks = min(32, (N+threadsperblock-1)/threadsperblock);
+
+    float a[N], b[N];
+    float *dev_a, *dev_b;
+    int *final_val;
+    long s = N * sizeof(int);
+
+    cudaMalloc((void**)&dev_a, s);
+    cudaMalloc((void**)&dev_b, s);
+
+    cudaMemset(&final_val, 0, sizeof(int));
+
+    cudaMemcpy(dev_a, a, s, cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_b, b, s, cudaMemcpyHostToDevice);
+
+    dot<<<numblocks, threadsperblock>>>(dev_a, dev_b, final_val, N);
+
+    int res;
+    cudaMemcpy(&res, final_val, s, cudaMemcpyDeviceToHost);
+
+    cudaFree(final_val);
+
+    return 0;
 }
